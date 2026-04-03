@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     # File uploads
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
     ALLOWED_FILE_TYPES: List[str] = [".pdf", ".docx", ".txt"]
+    UPLOAD_DIR: str = "uploads"
     
     # Pagination
     DEFAULT_PAGE_SIZE: int = 20

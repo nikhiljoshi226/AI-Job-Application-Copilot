@@ -10,6 +10,7 @@ from app.models.resume import Resume
 from app.models.job_description import JobDescription
 from app.models.tailored_resume import TailoredResume
 from app.services.tailoring_suggester import TailoringSuggester
+from app.services.tailored_resume_builder import TailoredResumeBuilder
 
 
 class TailoringRequest(BaseModel):
@@ -170,17 +171,59 @@ async def apply_tailoring_suggestions(
                 "tailored_resume_id": existing_tailored.id
             }
         
-        # Create tailored resume
+        # Build the tailored resume
+        builder = TailoredResumeBuilder()
+        
+        # Filter approved suggestions
+        approved_suggestions = {}
+        for section, section_suggestions in suggestions.get("suggestions", {}).items():
+            approved_suggestions[section] = [
+                s for s in section_suggestions if s.get('approved', False)
+            ]
+        
+        # Create truth bank for validation
+        from app.services.truth_bank import TruthBank
+        truth_bank_service = TruthBank()
+        truth_bank = truth_bank_service.create_truth_bank(resume.parsed_json)
+        
+        # Build the tailored resume
+        start_time = time.time()
+        tailored_result = builder.build_tailored_resume(
+            resume.parsed_json,
+            approved_suggestions,
+            truth_bank
+        )
+        
+        # Validate the result
+        is_valid, validation_errors = builder.validate_tailored_resume(
+            tailored_result["tailored_resume"],
+            resume.parsed_json
+        )
+        
+        if not is_valid:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tailored resume validation failed: {', '.join(validation_errors)}"
+            )
+        
+        # Prepare for rendering
+        rendering_data = builder.prepare_for_rendering(tailored_result["tailored_resume"])
+        
+        # Calculate alignment score
+        final_alignment_score = int(tailored_result["metadata"]["truthfulness_score"] * 100)
+        
+        # Create tailored resume record
         tailored_resume = TailoredResume(
             user_id=current_user_id,
             original_resume_id=request.resume_id,
             job_description_id=request.job_description_id,
             title=f"Tailored: {resume.title} for {job_description.job_title}",
-            tailored_content=suggestions,
+            tailored_content=tailored_result,
             suggestions=suggestions.get("suggestions", {}),
-            final_alignment_score=suggestions.get("metadata", {}).get("truthfulness_score", 0),
-            truthfulness_score=suggestions.get("metadata", {}).get("truthfulness_score", 0),
-            processing_time_ms=suggestions.get("metadata", {}).get("processing_time_ms", 0),
+            applied_suggestions=tailored_result["applied_changes"],
+            final_alignment_score=final_alignment_score,
+            truthfulness_score=tailored_result["metadata"]["truthfulness_score"],
+            processing_time_ms=tailored_result["metadata"]["processing_time_ms"],
             status="draft"
         )
         
@@ -192,7 +235,11 @@ async def apply_tailoring_suggestions(
             "message": "Tailored resume created successfully",
             "tailored_resume_id": tailored_resume.id,
             "title": tailored_resume.title,
-            "status": tailored_resume.status
+            "status": tailored_resume.status,
+            "metadata": tailored_result["metadata"],
+            "change_summary": tailored_result["change_summary"],
+            "validation_errors": validation_errors if not is_valid else [],
+            "rendering_data": rendering_data
         }
         
     except HTTPException:
