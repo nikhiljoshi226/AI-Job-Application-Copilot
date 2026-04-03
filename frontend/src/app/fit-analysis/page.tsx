@@ -1,443 +1,355 @@
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
+import { AppLayout } from '@/components/layout/app-layout'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { 
+  Target, 
+  CheckCircle, 
+  XCircle, 
+  AlertTriangle,
+  TrendingUp,
+  ArrowRight,
+  Download,
+  Share
+} from 'lucide-react'
 
-interface FitAnalysis {
-  fit_score: number
-  skills_analysis: {
-    matched_skills: Array<{
-      skill: string
-      category: string
-      resume_evidence: string
-      jd_requirement: string
-      match_strength: string
-    }>
-    missing_skills: Array<{
-      skill: string
-      category: string
-      jd_requirement: string
-      importance: string
-      gap_reason: string
-    }>
-    partial_matches: Array<{
-      skill: string
-      category: string
-      resume_evidence: string
-      jd_requirement: string
-      match_strength: string
-    }>
-  }
-  experience_analysis: {
-    level_alignment: string
-    years_experience_match: string
-    relevant_experience_highlights: Array<{
-      experience: string
-      relevance_score: number
-      alignment_reason: string
-    }>
-    experience_gaps: Array<{
-      gap: string
-      impact: string
-      suggestion: string
-    }>
-  }
-  role_alignment: {
-    overall_alignment: string
-    alignment_score: number
-    strengths: string[]
-    concerns: string[]
-    recommendations: string[]
-  }
-  education_analysis: {
-    education_match: string
-    degree_alignment: string
-    field_relevance: string
-    additional_education_needed: string[]
-  }
+// Mock data
+const fitAnalysisData = {
+  analysisName: "Senior Frontend Developer at TechCorp",
+  overallScore: 85,
+  status: "completed",
+  analyzedAt: "2024-01-15T10:30:00Z",
+  resume: {
+    title: "Senior Frontend Developer Resume",
+    fileName: "john_doe_frontend_dev.pdf"
+  },
+  jobDescription: {
+    title: "Senior Frontend Developer",
+    company: "TechCorp",
+    location: "San Francisco, CA"
+  },
+  matchedSkills: [
+    {
+      name: "React",
+      category: "Framework",
+      experience: "5 years",
+      proficiency: "Expert"
+    },
+    {
+      name: "TypeScript",
+      category: "Language",
+      experience: "4 years",
+      proficiency: "Advanced"
+    },
+    {
+      name: "Node.js",
+      category: "Backend",
+      experience: "3 years",
+      proficiency: "Intermediate"
+    },
+    {
+      name: "CSS/Tailwind",
+      category: "Styling",
+      experience: "5 years",
+      proficiency: "Expert"
+    },
+    {
+      name: "Git",
+      category: "Tool",
+      experience: "5 years",
+      proficiency: "Expert"
+    }
+  ],
+  missingSkills: [
+    {
+      name: "GraphQL",
+      category: "Technology",
+      importance: "High",
+      mentionedInJD: true
+    },
+    {
+      name: "AWS",
+      category: "Cloud Platform",
+      importance: "Medium",
+      mentionedInJD: true
+    },
+    {
+      name: "Docker",
+      category: "DevOps",
+      importance: "Medium",
+      mentionedInJD: true
+    }
+  ],
+  relevantExperience: [
+    {
+      title: "Senior Frontend Developer",
+      company: "Current Company",
+      duration: "2 years",
+      relevance: "High",
+      description: "Led development of enterprise React applications"
+    },
+    {
+      title: "Full Stack Developer",
+      company: "Previous Company",
+      duration: "3 years",
+      relevance: "High",
+      description: "Built full-stack web applications using React and Node.js"
+    }
+  ],
+  unsupportedRequirements: [
+    {
+      requirement: "GraphQL experience",
+      reason: "Not found in resume or experience"
+    },
+    {
+      requirement: "Cloud deployment experience",
+      reason: "No cloud platform experience listed"
+    }
+  ]
 }
 
-interface FitReport {
-  id: number
-  resume: {
-    id: number
-    title: string
-  }
-  job_description: {
-    id: number
-    job_title: string
-    company: string
-  }
-  overall_fit_score: number
-  skills_match_score: number
-  experience_match_score: number
-  education_match_score: number
-  matched_skills: any[]
-  missing_skills: any[]
-  role_alignment: any
-  recommendations: string[]
-  created_at: string
+const getScoreColor = (score: number) => {
+  if (score >= 80) return "text-green-600"
+  if (score >= 60) return "text-yellow-600"
+  return "text-red-600"
+}
+
+const getScoreBadge = (score: number) => {
+  if (score >= 80) return { variant: "default" as const, text: "Excellent Fit" }
+  if (score >= 60) return { variant: "secondary" as const, text: "Good Fit" }
+  return { variant: "destructive" as const, text: "Poor Fit" }
 }
 
 export default function FitAnalysisPage() {
-  const [fitReports, setFitReports] = useState<FitReport[]>([])
-  const [selectedReport, setSelectedReport] = useState<FitReport | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const [activeTab, setActiveTab] = useState('overview')
-
-  useEffect(() => {
-    fetchFitReports()
-  }, [])
-
-  const fetchFitReports = async () => {
-    try {
-      const response = await fetch('/api/v1/fit-analysis/reports')
-      if (!response.ok) {
-        throw new Error('Failed to fetch fit reports')
-      }
-      const data = await response.json()
-      setFitReports(data.fit_reports)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchFitReport = async (reportId: number) => {
-    try {
-      const response = await fetch(`/api/v1/fit-analysis/reports/${reportId}`)
-      if (!response.ok) {
-        throw new Error('Failed to fetch fit report')
-      }
-      const data = await response.json()
-      setSelectedReport(data)
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
-    }
-  }
-
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-600'
-    if (score >= 60) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  const getScoreBgColor = (score: number) => {
-    if (score >= 80) return 'bg-green-100'
-    if (score >= 60) return 'bg-yellow-100'
-    return 'bg-red-100'
-  }
-
-  const getAlignmentColor = (alignment: string) => {
-    if (alignment === 'strong') return 'text-green-600'
-    if (alignment === 'moderate') return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-r-2 border-t-2 border-l-2 border-primary-foreground mx-auto"></div>
-          <p className="mt-4 text-muted-foreground">Loading fit analysis...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="text-center">
-          <div className="bg-destructive/10 border border-destructive/20 text-destructive p-4 rounded-md">
-            <p className="text-sm">{error}</p>
-          </div>
-          <button
-            onClick={fetchFitReports}
-            className="mt-4 inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4"
-          >
-            Try Again
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const scoreBadge = getScoreBadge(fitAnalysisData.overallScore)
+  const scoreColor = getScoreColor(fitAnalysisData.overallScore)
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-6xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">
-          Fit Analysis
-        </h1>
-        <p className="text-lg text-muted-foreground">
-          Compare your resumes with job descriptions to see how well you match
-        </p>
-      </div>
+    <AppLayout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Fit Analysis Results</h1>
+            <p className="text-muted-foreground">
+              Analysis of your resume against the job description
+            </p>
+          </div>
+          <div className="flex space-x-2">
+            <Button variant="outline">
+              <Download className="mr-2 h-4 w-4" />
+              Export PDF
+            </Button>
+            <Button variant="outline">
+              <Share className="mr-2 h-4 w-4" />
+              Share
+            </Button>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Fit Reports List */}
-        <div className="lg:col-span-1">
-          <div className="bg-card p-6 rounded-lg border">
-            <h2 className="text-lg font-semibold text-foreground mb-4">
-              Your Fit Reports
-            </h2>
-            
-            {fitReports.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground mb-4">
-                  No fit reports yet. Upload resumes and job descriptions to get started.
+        {/* Overview Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <Target className="mr-2 h-5 w-5" />
+              Analysis Overview
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+              {/* Overall Score */}
+              <div className="text-center">
+                <div className={`text-4xl font-bold ${scoreColor}`}>
+                  {fitAnalysisData.overallScore}%
+                </div>
+                <Badge variant={scoreBadge.variant} className="mt-2">
+                  {scoreBadge.text}
+                </Badge>
+                <p className="text-sm text-muted-foreground mt-2">
+                  Overall Fit Score
                 </p>
-                <Link
-                  href="/resume-upload"
-                  className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4"
-                >
-                  Upload Resume
-                </Link>
               </div>
-            ) : (
+
+              {/* Resume Info */}
+              <div>
+                <h4 className="font-medium mb-2">Resume</h4>
+                <p className="text-sm text-muted-foreground">
+                  {fitAnalysisData.resume.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {fitAnalysisData.resume.fileName}
+                </p>
+              </div>
+
+              {/* Job Info */}
+              <div>
+                <h4 className="font-medium mb-2">Job Description</h4>
+                <p className="text-sm text-muted-foreground">
+                  {fitAnalysisData.jobDescription.title}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {fitAnalysisData.jobDescription.company} • {fitAnalysisData.jobDescription.location}
+                </p>
+              </div>
+
+              {/* Analysis Date */}
+              <div>
+                <h4 className="font-medium mb-2">Analyzed</h4>
+                <p className="text-sm text-muted-foreground">
+                  {new Date(fitAnalysisData.analyzedAt).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Matched Skills */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-green-600">
+                <CheckCircle className="mr-2 h-5 w-5" />
+                Matched Skills
+              </CardTitle>
+              <CardDescription>
+                Skills from your resume that match the job requirements
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-3">
-                {fitReports.map((report) => (
-                  <div
-                    key={report.id}
-                    className={`p-4 border rounded-lg cursor-pointer transition-colors hover:bg-muted/50 ${
-                      selectedReport?.id === report.id ? 'bg-muted border-primary' : ''
-                    }`}
-                    onClick={() => fetchFitReport(report.id)}
-                  >
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h3 className="font-semibold text-foreground text-sm">
-                          {report.job_description?.job_title}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {report.job_description?.company}
-                        </p>
-                      </div>
-                      <div className={`text-right`}>
-                        <div className={`text-lg font-bold ${getScoreColor(report.overall_fit_score)}`}>
-                          {report.overall_fit_score}%
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          Fit Score
-                        </div>
+                {fitAnalysisData.matchedSkills.map((skill, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <h5 className="font-medium">{skill.name}</h5>
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <span>{skill.category}</span>
+                        <span>•</span>
+                        <span>{skill.experience}</span>
+                        <span>•</span>
+                        <span>{skill.proficiency}</span>
                       </div>
                     </div>
-                    <div className="text-xs text-muted-foreground">
-                      Resume: {report.resume?.title}
-                    </div>
+                    <CheckCircle className="h-4 w-4 text-green-600" />
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
+
+          {/* Missing Skills */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center text-red-600">
+                <XCircle className="mr-2 h-5 w-5" />
+                Missing Skills
+              </CardTitle>
+              <CardDescription>
+                Skills required by the job that are not in your resume
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {fitAnalysisData.missingSkills.map((skill, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <h5 className="font-medium">{skill.name}</h5>
+                      <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                        <span>{skill.category}</span>
+                        <span>•</span>
+                        <Badge variant={skill.importance === "High" ? "destructive" : "secondary"}>
+                          {skill.importance} Priority
+                        </Badge>
+                      </div>
+                    </div>
+                    <XCircle className="h-4 w-4 text-red-600" />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
-        {/* Fit Analysis Details */}
-        <div className="lg:col-span-2">
-          {selectedReport ? (
-            <div className="bg-card p-6 rounded-lg border">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-foreground mb-2">
-                  {selectedReport.job_description?.job_title}
-                </h2>
-                <p className="text-muted-foreground mb-4">
-                  {selectedReport.job_description?.company}
-                </p>
-                
-                {/* Overall Fit Score */}
-                <div className="flex items-center justify-center mb-6">
-                  <div className="text-center">
-                    <div className={`text-6xl font-bold ${getScoreColor(selectedReport.overall_fit_score)}`}>
-                      {selectedReport.overall_fit_score}%
+        {/* Relevant Experience */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <TrendingUp className="mr-2 h-5 w-5" />
+              Relevant Experience
+            </CardTitle>
+            <CardDescription>
+              Your experience that aligns with this role
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {fitAnalysisData.relevantExperience.map((exp, index) => (
+                <div key={index} className="p-4 border rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <h5 className="font-medium">{exp.title}</h5>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        {exp.company} • {exp.duration}
+                      </p>
+                      <p className="text-sm">{exp.description}</p>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                      Overall Fit Score
-                    </div>
+                    <Badge variant={exp.relevance === "High" ? "default" : "secondary"}>
+                      {exp.relevance} Relevance
+                    </Badge>
                   </div>
                 </div>
-
-                {/* Score Breakdown */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(selectedReport.skills_match_score)}`}>
-                      {selectedReport.skills_match_score}%
-                    </div>
-                    <div className="text-xs text-muted-foreground">Skills</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(selectedReport.experience_match_score)}`}>
-                      {selectedReport.experience_match_score}%
-                    </div>
-                    <div className="text-xs text-muted-foreground">Experience</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-2xl font-bold ${getScoreColor(selectedReport.education_match_score)}`}>
-                      {selectedReport.education_match_score}%
-                    </div>
-                    <div className="text-xs text-muted-foreground">Education</div>
-                  </div>
-                  <div className="text-center">
-                    <div className={`text-lg font-bold ${getAlignmentColor(selectedReport.role_alignment?.overall_alignment || '')}`}>
-                      {selectedReport.role_alignment?.overall_alignment || ''}
-                    </div>
-                    <div className="text-xs text-muted-foreground">Alignment</div>
-                  </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex space-x-1 mb-6">
-                  {['overview', 'skills', 'experience', 'recommendations'].map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                        activeTab === tab
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
-                      }`}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Tab Content */}
-                {activeTab === 'overview' && (
-                  <div className="space-y-6">
-                    {/* Strengths */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Strengths</h3>
-                      <div className="space-y-2">
-                        {selectedReport.role_alignment?.strengths?.map((strength, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span className="text-sm">{strength}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Concerns */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Areas for Improvement</h3>
-                      <div className="space-y-2">
-                        {selectedReport.role_alignment?.concerns?.map((concern, index) => (
-                          <div key={index} className="flex items-center space-x-2">
-                            <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                            <span className="text-sm">{concern}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'skills' && (
-                  <div className="space-y-6">
-                    {/* Matched Skills */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">
-                        Matched Skills ({selectedReport.matched_skills?.length || 0})
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedReport.matched_skills?.map((skill, index) => (
-                          <div key={index} className={`p-3 rounded-lg ${getScoreBgColor(90)}`}>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-semibold text-sm">{skill.skill}</h4>
-                                <p className="text-xs text-muted-foreground">{skill.category}</p>
-                              </div>
-                              <span className={`text-xs px-2 py-1 rounded ${skill.match_strength === 'strong' ? 'bg-green-200 text-green-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                                {skill.match_strength}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">{skill.resume_evidence}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Missing Skills */}
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">
-                        Missing Skills ({selectedReport.missing_skills?.length || 0})
-                      </h3>
-                      <div className="space-y-2">
-                        {selectedReport.missing_skills?.map((skill, index) => (
-                          <div key={index} className={`p-3 rounded-lg ${getScoreBgColor(30)}`}>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-semibold text-sm">{skill.skill}</h4>
-                                <p className="text-xs text-muted-foreground">{skill.category}</p>
-                              </div>
-                              <span className={`text-xs px-2 py-1 rounded ${skill.importance === 'high' ? 'bg-red-200 text-red-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                                {skill.importance}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">{skill.gap_reason}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'experience' && (
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Experience Analysis</h3>
-                      <div className="grid grid-cols-2 gap-4 mb-6">
-                        <div>
-                          <p className="text-sm text-muted-foreground">Level Alignment</p>
-                          <p className={`font-semibold ${getAlignmentColor('aligned')}`}>Aligned</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-muted-foreground">Years Experience</p>
-                          <p className={`font-semibold ${getScoreColor(80)}`}>Sufficient</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground mb-3">Relevant Experience</h3>
-                      <div className="space-y-3">
-                        {selectedReport.role_alignment?.strengths?.filter(s => 'experience' in s.toLowerCase()).map((strength, index) => (
-                          <div key={index} className="p-3 bg-green-50 rounded-lg">
-                            <p className="text-sm">{strength}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeTab === 'recommendations' && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-foreground mb-3">Recommendations</h3>
-                    <div className="space-y-3">
-                      {selectedReport.recommendations?.map((recommendation, index) => (
-                        <div key={index} className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <p className="text-sm">{recommendation}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
+              ))}
             </div>
-          ) : (
-            <div className="bg-card p-6 rounded-lg border">
-              <div className="text-center py-12">
-                <p className="text-muted-foreground mb-4">
-                  Select a fit report from the list to view detailed analysis
+          </CardContent>
+        </Card>
+
+        {/* Unsupported Requirements */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center text-orange-600">
+              <AlertTriangle className="mr-2 h-5 w-5" />
+              Unsupported Requirements
+            </CardTitle>
+            <CardDescription>
+              Job requirements that couldn't be matched to your profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {fitAnalysisData.unsupportedRequirements.map((req, index) => (
+                <div key={index} className="p-3 border rounded-lg bg-orange-50 border-orange-200">
+                  <div className="flex items-start">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 mr-2 mt-0.5" />
+                    <div>
+                      <h5 className="font-medium text-orange-800">{req.requirement}</h5>
+                      <p className="text-sm text-orange-600">{req.reason}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Action Buttons */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium">Next Steps</h4>
+                <p className="text-sm text-muted-foreground">
+                  Get tailored suggestions to improve your fit
                 </p>
               </div>
+              <Button>
+                <ArrowRight className="mr-2 h-4 w-4" />
+                Go to Tailoring Review
+              </Button>
             </div>
-          )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </AppLayout>
   )
 }

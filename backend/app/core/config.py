@@ -1,13 +1,12 @@
-from pydantic_settings import BaseSettings, SettingsConfig
+from pydantic_settings import BaseSettings
 from typing import List, Optional
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfig(
-        env_file=".env",
-        env_ignore_empty=True,
-        extra="ignore",
-    )
+    class Config:
+        env_file = ".env"
+        env_ignore_empty = True
+        extra = "ignore"
 
     # Basic app settings
     PROJECT_NAME: str = "AI Job Application Copilot"
@@ -22,12 +21,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/ai_job_copilot"
     
     # CORS
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "https://localhost:3000",
-        "https://localhost:3001",
-    ]
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
     
     # AI Services
     OPENAI_API_KEY: Optional[str] = None
@@ -39,7 +33,7 @@ class Settings(BaseSettings):
     
     # File uploads
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  # 10MB
-    ALLOWED_FILE_TYPES: List[str] = [".pdf", ".docx", ".txt"]
+    ALLOWED_FILE_TYPES: str = ".pdf,.docx,.txt"
     UPLOAD_DIR: str = "uploads"
     
     # Pagination

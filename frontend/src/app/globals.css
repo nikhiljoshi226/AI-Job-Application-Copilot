@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Temporary debug styles to verify Tailwind is working */
+.debug-tailwind {
+  @apply bg-gradient-to-r from-blue-500 to-purple-600 text-white p-4 rounded-lg;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

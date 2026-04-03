@@ -1,239 +1,437 @@
-'use client';
+"use client"
 
-import React, { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { DiffPreview } from '@/components/tailoring/DiffPreview';
+import { useState } from 'react'
+import { AppLayout } from '@/components/layout/app-layout'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
+import { Textarea } from '@/components/ui/textarea'
 import { 
-  TailoringResponse, 
-  TailoringRequest, 
-  SuggestionApproval, 
-  TailoredResume 
-} from '@/types/tailoring';
+  Edit3, 
+  CheckCircle, 
+  X, 
+  Plus,
+  Eye,
+  Download,
+  RefreshCw,
+  AlertCircle,
+  Lightbulb
+} from 'lucide-react'
+
+// Mock data
+const tailoringSuggestions = [
+  {
+    id: 1,
+    type: "skill_highlight",
+    title: "Add GraphQL Experience",
+    original: "Experience with REST APIs",
+    suggested: "Experience with REST APIs and GraphQL",
+    reason: "Job requires GraphQL knowledge",
+    confidence: 0.85,
+    evidence: {
+      resume_snippet: "Built REST APIs for various projects",
+      jd_requirement: "GraphQL experience required",
+      improvement: "Add GraphQL projects to portfolio"
+    },
+    status: "pending"
+  },
+  {
+    id: 2,
+    type: "experience_reword",
+    title: "Expand Cloud Deployment Experience",
+    original: "Deployed applications to local servers",
+    suggested: "Deployed applications to AWS cloud infrastructure",
+    reason: "Job requires cloud deployment experience",
+    confidence: 0.92,
+    evidence: {
+      resume_snippet: "Local deployment and testing",
+      jd_requirement: "Cloud deployment experience",
+      improvement: "Highlight AWS deployment projects"
+    },
+    status: "pending"
+  },
+  {
+    id: 3,
+    type: "skill_addition",
+    title: "Add Docker Experience",
+    original: "Manual deployment processes",
+    suggested: "Containerized applications using Docker for deployment",
+    reason: "Modern development practices require containerization",
+    confidence: 0.78,
+    evidence: {
+      resume_snippet: "Manual deployment and configuration",
+      jd_requirement: "Docker experience preferred",
+      improvement: "Add Docker containerization projects"
+    },
+    status: "accepted"
+  },
+  {
+    id: 4,
+    type: "certification_suggestion",
+    title: "Add AWS Certification",
+    original: "Self-taught cloud skills",
+    suggested: "AWS Certified Solutions Architect - Professional",
+    reason: "Formal certification strengthens cloud credentials",
+    confidence: 0.70,
+    evidence: {
+      resume_snippet: "Self-studied AWS services",
+      jd_requirement: "Cloud certifications preferred",
+      improvement: "Obtain AWS certification to validate skills"
+    },
+    status: "pending"
+  },
+  {
+    id: 5,
+    type: "project_suggestion",
+    title: "Add GraphQL API Project",
+    original: "REST API projects only",
+    suggested: "Build a full-stack application with GraphQL API",
+    reason: "Demonstrates GraphQL end-to-end implementation",
+    confidence: 0.88,
+    evidence: {
+      resume_snippet: "REST API development experience",
+      jd_requirement: "GraphQL implementation experience",
+      improvement: "Create GraphQL API project with React frontend"
+    },
+    status: "pending"
+  }
+]
+
+const getStatusBadge = (status: string) => {
+  const variants = {
+    pending: { variant: "secondary" as const, text: "Pending" },
+    accepted: { variant: "default" as const, text: "Accepted" },
+    rejected: { variant: "destructive" as const, text: "Rejected" },
+    applied: { variant: "default" as const, text: "Applied" }
+  }
+  return variants[status as keyof typeof variants] || variants.pending
+}
+
+const getConfidenceColor = (confidence: number) => {
+  if (confidence >= 0.8) return "text-green-600"
+  if (confidence >= 0.6) return "text-yellow-600"
+  return "text-red-600"
+}
+
+const getSuggestionIcon = (type: string) => {
+  const icons = {
+    skill_highlight: Edit3,
+    experience_reword: Edit3,
+    skill_addition: Plus,
+    certification_suggestion: CheckCircle,
+    project_suggestion: Lightbulb
+  }
+  return icons[type as keyof typeof icons] || Edit3
+}
 
 export default function TailoringPage() {
-  const params = useParams();
-  const router = useRouter();
-  const resumeId = parseInt(params.resumeId as string);
-  const jobDescriptionId = parseInt(params.jobDescriptionId as string);
+  const [suggestions, setSuggestions] = useState(tailoringSuggestions)
+  const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null)
+  const [customFeedback, setCustomFeedback] = useState('')
+  const [isGenerating, setIsGenerating] = useState(false)
 
-  const [tailoringData, setTailoringData] = useState<TailoringResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [applying, setApplying] = useState(false);
-
-  // Generate tailoring suggestions
-  useEffect(() => {
-    const generateSuggestions = async () => {
-      if (!resumeId || !jobDescriptionId) {
-        setError('Missing resume or job description ID');
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        const request: TailoringRequest = {
-          resume_id: resumeId,
-          job_description_id: jobDescriptionId
-        };
-
-        const response = await fetch('/api/v1/tailoring/generate-suggestions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(request),
-        });
-
-        if (!response.ok) {
-          throw new Error(`Failed to generate suggestions: ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        setTailoringData(data.suggestions);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to generate suggestions');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    generateSuggestions();
-  }, [resumeId, jobDescriptionId]);
-
-  // Handle suggestion actions (approve, reject, edit)
-  const handleSuggestionAction = async (approval: SuggestionApproval) => {
-    if (!tailoringData) return;
-
-    // Update local state immediately for responsive UI
-    const updatedSuggestions = { ...tailoringData.suggestions };
-    const suggestion = updatedSuggestions[approval.section][approval.suggestionIndex];
-
-    if (approval.action === 'approve') {
-      suggestion.approved = true;
-      suggestion.rejected = false;
-      suggestion.user_edits = approval.user_edits;
-    } else if (approval.action === 'reject') {
-      suggestion.approved = false;
-      suggestion.rejected = true;
-    } else if (approval.action === 'edit') {
-      suggestion.approved = true;
-      suggestion.rejected = false;
-      suggestion.user_edits = approval.user_edits;
-    }
-
-    setTailoringData({
-      ...tailoringData,
-      suggestions: updatedSuggestions
-    });
-  };
-
-  // Save progress
-  const handleSave = async () => {
-    if (!tailoringData) return;
-
-    try {
-      setSaving(true);
-      
-      // Create a tailored resume with current state
-      const response = await fetch('/api/v1/tailoring/apply-suggestions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resume_id: resumeId,
-          job_description_id: jobDescriptionId,
-          suggestions: tailoringData
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save progress: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log('Progress saved:', result);
-      
-      // Show success message (you could add a toast notification here)
-      alert('Progress saved successfully!');
-    } catch (err) {
-      console.error('Save error:', err);
-      alert(err instanceof Error ? err.message : 'Failed to save progress');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  // Apply all approved suggestions
-  const handleApplyAll = async () => {
-    if (!tailoringData) return;
-
-    // Check if there are approved suggestions
-    let approvedCount = 0;
-    Object.values(tailoringData.suggestions).forEach(sectionSuggestions => {
-      sectionSuggestions.forEach(suggestion => {
-        if (suggestion.approved && !suggestion.rejected) {
-          approvedCount++;
-        }
-      });
-    });
-
-    if (approvedCount === 0) {
-      alert('No approved suggestions to apply. Please approve some suggestions first.');
-      return;
-    }
-
-    try {
-      setApplying(true);
-      
-      const response = await fetch('/api/v1/tailoring/apply-suggestions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          resume_id: resumeId,
-          job_description_id: jobDescriptionId,
-          suggestions: tailoringData
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to apply suggestions: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log('Suggestions applied:', result);
-      
-      // Redirect to the tailored resume page
-      router.push(`/tailored-resumes/${result.tailored_resume_id}`);
-    } catch (err) {
-      console.error('Apply error:', err);
-      alert(err instanceof Error ? err.message : 'Failed to apply suggestions');
-    } finally {
-      setApplying(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Generating Tailoring Suggestions</h2>
-          <p className="text-gray-600">Analyzing your resume and the job description...</p>
-        </div>
-      </div>
-    );
+  const handleSuggestionAction = (suggestionId: number, action: 'accept' | 'reject') => {
+    setSuggestions(prev => 
+      prev.map(suggestion => 
+        suggestion.id === suggestionId 
+          ? { ...suggestion, status: action }
+          : suggestion
+      )
+    )
   }
 
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="bg-red-100 rounded-full p-4 w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Error</h2>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-          >
-            Go Back
-          </button>
-        </div>
-      </div>
-    );
+  const handleEditSuggestion = (suggestionId: number, field: string, value: string) => {
+    setSuggestions(prev => 
+      prev.map(suggestion => 
+        suggestion.id === suggestionId 
+          ? { ...suggestion, [field]: value }
+          : suggestion
+      )
+    )
   }
 
-  if (!tailoringData) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">No Data Available</h2>
-          <p className="text-gray-600">Unable to load tailoring suggestions.</p>
-        </div>
-      </div>
-    );
+  const generateMoreSuggestions = async () => {
+    setIsGenerating(true)
+    // Mock generation process
+    setTimeout(() => {
+      const newSuggestion = {
+        id: suggestions.length + 1,
+        type: "skill_addition",
+        title: "Add Testing Framework Experience",
+        original: "Manual testing processes",
+        suggested: "Experience with Jest and React Testing Library",
+        reason: "Automated testing is industry standard",
+        confidence: 0.75,
+        evidence: {
+          resume_snippet: "Manual testing approaches",
+          jd_requirement: "Testing framework experience",
+          improvement: "Add automated testing to projects"
+        },
+        status: "pending"
+      }
+      setSuggestions(prev => [...prev, newSuggestion])
+      setIsGenerating(false)
+    }, 2000)
+  }
+
+  const applyAllAccepted = () => {
+    const acceptedSuggestions = suggestions.filter(s => s.status === 'accepted')
+    if (acceptedSuggestions.length === 0) {
+      alert('Please accept at least one suggestion to apply')
+      return
+    }
+    // Mock application process
+    alert(`Applying ${acceptedSuggestions.length} suggestions to your resume...`)
+  }
+
+  const exportSuggestions = () => {
+    const dataStr = JSON.stringify(suggestions, null, 2)
+    const blob = new Blob([dataStr], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'tailoring-suggestions.json'
+    a.click()
+    URL.revokeObjectURL(url)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <DiffPreview
-        suggestions={tailoringData.suggestions}
-        unsupportedRequirements={tailoringData.unsupported_requirements}
-        guardrailViolations={tailoringData.guardrail_violations}
-        metadata={tailoringData.metadata}
-        onSuggestionAction={handleSuggestionAction}
-        onApplyAll={handleApplyAll}
-        onSave={handleSave}
-        loading={saving || applying}
-      />
-    </div>
-  );
+    <AppLayout>
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Tailoring Review</h1>
+            <p className="text-muted-foreground">
+              Review and customize AI-generated suggestions to improve your resume
+            </p>
+          </div>
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={generateMoreSuggestions} disabled={isGenerating}>
+              {isGenerating ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Generate More
+                </>
+              )}
+            </Button>
+            <Button variant="outline" onClick={exportSuggestions}>
+              <Download className="mr-2 h-4 w-4" />
+              Export
+            </Button>
+          </div>
+        </div>
+
+        {/* Summary Stats */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-primary">
+                  {suggestions.length}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Total Suggestions
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">
+                  {suggestions.filter(s => s.status === 'accepted').length}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Accepted
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-yellow-600">
+                  {suggestions.filter(s => s.status === 'pending').length}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Pending Review
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">
+                  {Math.round(suggestions.reduce((acc, s) => acc + s.confidence, 0) / suggestions.length * 100)}%
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Avg. Confidence
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Suggestions List */}
+        <div className="space-y-4">
+          {suggestions.map((suggestion) => {
+            const statusBadge = getStatusBadge(suggestion.status)
+            const Icon = getSuggestionIcon(suggestion.type)
+            const confidenceColor = getConfidenceColor(suggestion.confidence)
+            
+            return (
+              <Card key={suggestion.id} className="transition-all duration-200">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center space-x-3">
+                      <Icon className="h-5 w-5 text-primary" />
+                      <div>
+                        <CardTitle className="text-lg">{suggestion.title}</CardTitle>
+                        <Badge variant={statusBadge.variant} className="ml-2">
+                          {statusBadge.text}
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="text-right">
+                        <div className={`text-sm font-medium ${confidenceColor}`}>
+                          {Math.round(suggestion.confidence * 100)}%
+                        </div>
+                        <div className="text-xs text-muted-foreground">Confidence</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedSuggestion(
+                          selectedSuggestion === suggestion.id ? null : suggestion.id
+                        )}
+                      >
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <CardDescription className="mt-2">
+                    {suggestion.reason}
+                  </CardDescription>
+                </CardHeader>
+                
+                {selectedSuggestion === suggestion.id && (
+                  <CardContent className="border-t">
+                    <div className="space-y-4">
+                      {/* Evidence Section */}
+                      <div>
+                        <h4 className="font-medium mb-2 flex items-center">
+                          <AlertCircle className="mr-2 h-4 w-4" />
+                          Evidence & Analysis
+                        </h4>
+                        <div className="bg-muted/30 p-3 rounded-lg space-y-2">
+                          <div>
+                            <span className="text-sm font-medium">Resume Snippet:</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              "{suggestion.evidence.resume_snippet}"
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">JD Requirement:</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              "{suggestion.evidence.jd_requirement}"
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-sm font-medium">Improvement:</span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {suggestion.evidence.improvement}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Edit Section */}
+                      <div>
+                        <h4 className="font-medium mb-2">Customize Suggestion</h4>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Suggested Change</label>
+                            <Textarea
+                              value={suggestion.suggested}
+                              onChange={(e) => handleEditSuggestion(suggestion.id, 'suggested', e.target.value)}
+                              className="min-h-[80px]"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Add Feedback</label>
+                            <Textarea
+                              value={customFeedback}
+                              onChange={(e) => setCustomFeedback(e.target.value)}
+                              placeholder="Add any additional feedback or notes..."
+                              className="min-h-[60px]"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                )}
+
+                <CardContent className="pt-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex space-x-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSuggestionAction(suggestion.id, 'reject')}
+                        disabled={suggestion.status === 'applied'}
+                      >
+                        <X className="mr-2 h-4 w-4" />
+                        Reject
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSuggestionAction(suggestion.id, 'accept')}
+                        disabled={suggestion.status === 'applied'}
+                      >
+                        <CheckCircle className="mr-2 h-4 w-4" />
+                        Accept
+                      </Button>
+                    </div>
+                    <Badge variant={suggestion.status === 'applied' ? 'default' : 'secondary'}>
+                      {suggestion.status === 'applied' ? 'Applied' : 'Not Applied'}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
+
+        {/* Action Buttons */}
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="font-medium">Apply Changes</h4>
+                <p className="text-sm text-muted-foreground">
+                  Apply all accepted suggestions to your resume
+                </p>
+              </div>
+              <Button onClick={applyAllAccepted}>
+                <CheckCircle className="mr-2 h-4 w-4" />
+                Apply {suggestions.filter(s => s.status === 'accepted').length} Changes
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </AppLayout>
+  )
 }
